@@ -5,6 +5,8 @@
 */
 
 #include "sfall/sfall.h"
+#include "sfall/lib.arrays.h"
+#include "sfall/lib.strings.h"
 
 #define INI_SETTINGS_DEBUG_ERROR_MSG_PREFIX "[IniSetting Error] "
 #define INI_SETTINGS_VALID_LOAD_OPTIONS "prefix_types,section_maps,concat_fields,store_array,field_pointers"
@@ -89,7 +91,7 @@ procedure __IniSettings_AddFieldsToConfig(variable options, variable config_map,
             end
         end
     end
-    
+
     return true;
 end
 
@@ -104,7 +106,7 @@ procedure IniSettings_LoadIni(variable ini_path, variable options) begin
             debug1f("Unsupported IniSettings option: %s", option_name);
             return;
         end
-    
+
     // Set default for options which were not explicitly provided
     foreach option_name in valid_options
         if not map_contains_key(options, option_name) then
@@ -143,7 +145,7 @@ procedure IniSettings_LoadIni(variable ini_path, variable options) begin
             display_msg("TODO - [section] without .");
             // section = config[section_name];
             // if not section then begin
-                
+
             // end
         end
     end
