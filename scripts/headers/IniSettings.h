@@ -14,6 +14,7 @@
 #define INI_SETTINGS_PREFIX_FLOAT_ARRAY "af"
 #define INI_SETTINGS_PREFIX_STRING_ARRAY "as"
 #define INI_SETTINGS_PREFIX_FIELD_POINTER "p"
+#define INI_SETTINGS_FIELD_CONCAT_SEPARATOR ":"
 
 procedure __IniSettings_AddFieldsToConfig(variable options, variable config_map, variable section_map, variable section_fields) begin
     display_msg("config ID: " + config_map); // Needs to be used!
@@ -21,14 +22,35 @@ procedure __IniSettings_AddFieldsToConfig(variable options, variable config_map,
 
     variable field_name, field_value;
 
-    // POINTERS FIRST (how to make them work with concat???)
+    if options.concat_fields then begin
+        variable concat_field_found;
+        while true do begin
+            concat_field_found = false;
+            foreach field_name: field_value in section_fields begin
+                if is_in_string(field_name, INI_SETTINGS_FIELD_CONCAT_SEPARATOR) then begin
+                    concat_field_found = true;
+                    variable field_name_parts = string_split(field_name, INI_SETTINGS_FIELD_CONCAT_SEPARATOR);
+                    variable field_name_without_separator = field_name_parts[0];
+                    if map_contains_key(section_fields, field_name_without_separator) then
+                        section_fields[field_name_without_separator] = section_fields[field_name_without_separator] + field_value;
+                    else
+                        section_fields[field_name_without_separator] = field_value;
+                    section_fields[field_name] = 0;
+                    break;
+                end
+            end
+            if not concat_field_found then break;
+        end
+    end
 
     // CONCAT FIRST
+
+    // POINTERS in the if/else below
 
     if options.prefix_types then begin
         foreach field_name: field_value in section_fields begin
             debug2f("%s = %s", field_name, field_value);
-            if strlen(field_name) < 2 then begin
+            if strlen(field_name) < 3 then begin
                 debug1("Invalid ini field name: '%s'. Too short. Expected prefix (i,f,s,ai,af,as,p) followed by name.", field_name);
                 return false;
             end
@@ -41,17 +63,17 @@ procedure __IniSettings_AddFieldsToConfig(variable options, variable config_map,
             else if string_starts_with(field_name, INI_SETTINGS_PREFIX_INT_ARRAY) then begin
                 variable int_array = string_split_ints(field_value, ",");
                 if options.store_array then fix_array(int_array);
-                section_map[substr(field_name, 1, 0)] = int_array;
+                section_map[substr(field_name, 2, 0)] = int_array;
             end else if string_starts_with(field_name, INI_SETTINGS_PREFIX_FLOAT_ARRAY) then begin
                 variable float_array = string_split(field_value, ",");
                 variable i, value;
                 foreach i: value in float_array float_array[i] = atof(value);
                 if options.store_array then fix_array(float_array);
-                section_map[substr(field_name, 1, 0)] = float_array;
+                section_map[substr(field_name, 2, 0)] = float_array;
             end else if string_starts_with(field_name, INI_SETTINGS_PREFIX_STRING_ARRAY) then begin
                 variable string_array = string_split(field_value, ",");
                 if options.store_array then fix_array(string_array);
-                section_map[substr(field_name, 1, 0)] = string_array;
+                section_map[substr(field_name, 2, 0)] = string_array;
             end else begin
                 debug1f("Invalid ini field name: '%s'. Expected prefix (i,f,s,ai,af,as,p) but found none.", field_name);
                 return false;
