@@ -6,6 +6,7 @@
 
 #include "sfall/sfall.h"
 
+#define INI_SETTINGS_DEBUG_ERROR_MSG_PREFIX "[IniSetting Error] "
 #define INI_SETTINGS_VALID_LOAD_OPTIONS "prefix_types,section_maps,concat_fields,store_array,field_pointers"
 #define INI_SETTINGS_PREFIX_INT "i"
 #define INI_SETTINGS_PREFIX_FLOAT "f"
@@ -14,12 +15,10 @@
 #define INI_SETTINGS_PREFIX_FLOAT_ARRAY "af"
 #define INI_SETTINGS_PREFIX_STRING_ARRAY "as"
 #define INI_SETTINGS_PREFIX_FIELD_POINTER "p"
+#define INI_SETTINGS_FIELD_SECTION_MAP_SEPARATOR "."
 #define INI_SETTINGS_FIELD_CONCAT_SEPARATOR ":"
 
 procedure __IniSettings_AddFieldsToConfig(variable options, variable config_map, variable section_map, variable section_fields) begin
-    display_msg("config ID: " + config_map); // Needs to be used!
-    display_msg("section ID: " + section_map); // Needs to be used!
-
     variable field_name, field_value;
 
     if options.concat_fields then begin
@@ -43,15 +42,10 @@ procedure __IniSettings_AddFieldsToConfig(variable options, variable config_map,
         end
     end
 
-    // CONCAT FIRST
-
-    // POINTERS in the if/else below
-
     if options.prefix_types then begin
         foreach field_name: field_value in section_fields begin
-            debug2f("%s = %s", field_name, field_value);
             if strlen(field_name) < 3 then begin
-                debug1("Invalid ini field name: '%s'. Too short. Expected prefix (i,f,s,ai,af,as,p) followed by name.", field_name);
+                debug_msg(INI_SETTINGS_DEBUG_ERROR_MSG_PREFIX "Invalid ini field name: '" + field_name + "'. Too short. Expected prefix (i,f,s,ai,af,as,p) followed by name.");
                 return false;
             end
             if string_starts_with(field_name, INI_SETTINGS_PREFIX_INT) then
@@ -75,8 +69,23 @@ procedure __IniSettings_AddFieldsToConfig(variable options, variable config_map,
                 if options.store_array then fix_array(string_array);
                 section_map[substr(field_name, 2, 0)] = string_array;
             end else begin
-                debug1f("Invalid ini field name: '%s'. Expected prefix (i,f,s,ai,af,as,p) but found none.", field_name);
-                return false;
+                if options.field_pointers and string_starts_with(field_name, INI_SETTINGS_PREFIX_FIELD_POINTER) then begin
+                    variable target = config_map;
+                    variable target_parts = string_split(field_value, INI_SETTINGS_FIELD_SECTION_MAP_SEPARATOR);
+                    variable target_part;
+                    foreach target_part in target_parts begin
+                        if map_contains_key(target, target_part) then begin
+                            target = target[target_part];
+                        end else begin
+                            debug_msg(INI_SETTINGS_DEBUG_ERROR_MSG_PREFIX "Target for field pointer '" + field_name + "' not found: " + field_value + ".");
+                            return false;
+                        end
+                    end
+                    section_map[substr(field_name, 1, 0)] = target;
+                end else begin
+                    debug_msg(INI_SETTINGS_DEBUG_ERROR_MSG_PREFIX "Invalid ini field name: '" + field_name + "'. Expected prefix (i,f,s,ai,af,as,p) but found none.");
+                    return false;
+                end
             end
         end
     end
@@ -112,7 +121,7 @@ procedure IniSettings_LoadIni(variable ini_path, variable options) begin
     foreach section_name in section_names begin
         variable section = config;
 
-        if is_in_string(section_name, ".") and options.section_maps then begin
+        if is_in_string(section_name, INI_SETTINGS_FIELD_SECTION_MAP_SEPARATOR) and options.section_maps then begin
             variable section_name_parts = string_split(section_name, ".");
             variable section_name_part;
             foreach section_name_part in section_name_parts begin
